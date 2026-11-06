@@ -1,0 +1,113 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>My Profile</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container" style="max-width: 500px;">
+        <div class="header">
+            <h1>My Profile</h1>
+            <button class="btn-profile" onclick="goBack()">Back</button>
+        </div>
+        <div class="card">
+            <form id="profileForm">
+                <label>Name</label><input type="text" id="name" required>
+                <label>Email</label><input type="email" id="email" required>
+                <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
+                <p class="muted">Leave password fields blank to keep current password.</p>
+                <label>Current Password</label><input type="password" id="currentPassword">
+                <label>New Password</label><input type="password" id="newPassword">
+                <button type="submit" style="margin-top: 15px;">Save Changes</button>
+            </form>
+            <p id="msg" class="msg"></p>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        let user = null;
+        try {
+            user = JSON.parse(localStorage.getItem('user'));
+        } catch (e) {
+            user = null;
+        }
+
+        if (!token || !user || !user.role) {
+            localStorage.clear();
+            window.location.href = '/login.html';
+            throw new Error('Not authenticated');
+        }
+
+        document.getElementById('name').value = user.name;
+        document.getElementById('email').value = user.email;
+
+        function goBack() {
+            window.location.href = '/' + user.role + '.html';
+        }
+
+        document.getElementById('profileForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const msg = document.getElementById('msg');
+            msg.textContent = '';
+            msg.className = 'msg';
+
+            const name = document.getElementById('name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+
+            if (!name || !email) {
+                msg.textContent = 'Name and email are required.';
+                msg.className = 'msg error';
+                return;
+            }
+
+            if (newPassword && !currentPassword) {
+                msg.textContent = 'Please enter your current password to set a new one.';
+                msg.className = 'msg error';
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/profile', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify({ name, email, currentPassword, newPassword })
+                });
+
+                if (res.status === 401 || res.status === 403) {
+                    localStorage.clear();
+                    window.location.href = '/login.html';
+                    return;
+                }
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    msg.textContent = 'Profile updated successfully!';
+                    msg.className = 'msg success';
+
+                    user.name = data.name;
+                    user.email = data.email;
+                    localStorage.setItem('user', JSON.stringify(user));
+
+                    document.getElementById('currentPassword').value = '';
+                    document.getElementById('newPassword').value = '';
+                } else {
+                    msg.textContent = data.error || 'Update failed.';
+                    msg.className = 'msg error';
+                }
+            } catch (err) {
+                msg.textContent = 'Network error. Please try again.';
+                msg.className = 'msg error';
+            }
+        });
+    </script>
+</body>
+</html>
